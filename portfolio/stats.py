@@ -23,9 +23,15 @@ def get_global_state(transaction_df, merged_df, as_html=True):
 	portfolio_state = portfolio_state.sort_values("fraction", ascending=False)
 	portfolio_state["fraction"] = portfolio_state.fraction.apply(lambda d: "{:0.1%}".format(d))
 	
+	def format_money(f):
+		return "{:3.2f}".format(f)
+		return f
+	for col in ("gain", "pcs", "total"):
+		portfolio_state[col] = portfolio_state[col].apply(format_money)
+
 	if as_html:
-		current_state = current_state.to_html()
-		portfolio_state = portfolio_state.to_html()
+		current_state = current_state.to_html(classes="table text-right")
+		portfolio_state = portfolio_state.to_html(classes="table text-right")
 	
 	return current_state, portfolio_state
 		

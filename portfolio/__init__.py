@@ -1,2 +1,3 @@
-from .crawl_data import crawl_and_save_etf_data, load_transactions_from_google_sheets
+from .crawl_data import update_and_store_etf_data, load_transactions_from_google_sheets
 from .load_data import read_current_etf_information
+from .main import update_and_analyze_portfolio

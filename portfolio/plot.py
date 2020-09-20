@@ -6,6 +6,9 @@ import pandas
 import numpy as np
 import itertools
 
+DPI = 100
+FIGSCALE = 0.5
+
 def plot_cci(etf_df, transaction_df, save_path=None):
     cci_df = etf_df.pivot_table(index="date", values="price", columns="symbol")
     etf_translations = {isin: name for isin, name in transaction_df[["symbol_isin", "name"]].itertuples(index=False)}
@@ -21,7 +24,7 @@ def plot_cci(etf_df, transaction_df, save_path=None):
     cci_df = cci_df.rolling(7, center=True).mean()
     #cci_df = cci_df.reset_index()
 
-    fig, ax = plt.subplots(figsize=(20, 10))
+    fig, ax = plt.subplots(figsize=(20 * FIGSCALE, 15 * FIGSCALE), dpi=DPI)
     cci_df.plot(ax=ax)
     ax.axhline(100, linestyle="--", c="k")
     ax.axhline(-100, linestyle="--", c="k")
@@ -29,7 +32,7 @@ def plot_cci(etf_df, transaction_df, save_path=None):
     plt.title("Commodity Channel Index")
     plt.tight_layout()
     if save_path is not None:
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
         plt.close()
     else:
         plt.show()
@@ -41,7 +44,7 @@ def plot_gain_development(transaction_df, merged_df, save_path=None):
     df_sum = merged_df.pivot_table(index="date", values=["total", "gain"], aggfunc=np.sum)
     df_sum.reset_index(inplace=True)
 
-    fig, ax = plt.subplots(figsize=(20, 10))
+    fig, ax = plt.subplots(figsize=(20 * FIGSCALE, 15 * FIGSCALE), dpi=DPI)
     df_cols.plot.area(ax=ax)
 
     fig.canvas.draw()
@@ -73,7 +76,7 @@ def plot_gain_development(transaction_df, merged_df, save_path=None):
     if save_path is None:
         plt.show()
     else:
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
         plt.close()
 
 
@@ -96,10 +99,33 @@ def plot_clustermap(transaction_df, merged_df, save_path=None):
     linkage = scipy.cluster.hierarchy.linkage(1.0 - np.abs(correlations), method="ward")
     sns.clustermap(correlations, vmin=-1.0, vmax=1.0, cmap="seismic",
                 row_linkage=linkage, col_linkage=linkage,
-                xticklabels=df_series.columns, yticklabels=df_series.columns, figsize=(15, 15))
-                
+                xticklabels=df_series.columns, yticklabels=df_series.columns, figsize=(15 * FIGSCALE, 15 * FIGSCALE))
+
     if save_path is None:
         plt.show()
     else:
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
+        plt.close()
+
+def plot_portfolio_distribution(merged_df, save_path=None):
+
+    current_state = merged_df[merged_df.date == merged_df.date.max()]
+    current_state = current_state.pivot_table(index="name", values="total", aggfunc=np.sum)
+    current_state = current_state.reset_index()
+    current_state = current_state.sort_values("total", ascending=False)
+
+    def clean_label(l):
+        cut = l.find(" ", 15)
+        if cut != -1:
+            l = l[:cut] + "\n" + l[(cut+1):]
+        return l
+    labels = [clean_label(str(l)) for l in current_state.name]
+
+    fig, ax = plt.subplots(figsize=(15 * FIGSCALE, 15 * FIGSCALE), dpi=DPI)
+    plt.pie(x=current_state.total, labels=labels)
+    
+    if save_path is None:
+        plt.show()
+    else:
+        plt.savefig(save_path, bbox_inches='tight')
         plt.close()
