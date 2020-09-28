@@ -84,19 +84,22 @@ def plot_clustermap(transaction_df, merged_df, save_path=None):
     df_series = merged_df.pivot_table(index="date", columns="name", values="price", aggfunc=np.sum)
 
     N = len(df_series.columns)
-    correlations = np.zeros(shape=(N, N), dtype=np.float32)
+    correlations = np.ones(shape=(N, N), dtype=np.float32)
 
     for c1, c2 in itertools.combinations(range(N), 2):
         series = df_series[df_series.columns[c1]].values, df_series[df_series.columns[c2]].values
         valid = ~pandas.isnull(series[0]) & ~pandas.isnull(series[1])
         if valid.sum() < 2:
-            continue
-        series = series[0][valid], series[1][valid]
-        c, p = scipy.stats.spearmanr(*series)
+            c = 0.0
+        else:
+            series = series[0][valid], series[1][valid]
+            c, p = scipy.stats.spearmanr(*series)
         correlations[c1, c2] = c
         correlations[c2, c1] = c
 
-    linkage = scipy.cluster.hierarchy.linkage(1.0 - np.abs(correlations), method="ward")
+    distance_matrix = np.abs(np.max(correlations) - correlations)
+    distance_matrix = scipy.spatial.distance.squareform(distance_matrix) # Inverse square form.
+    linkage = scipy.cluster.hierarchy.linkage(distance_matrix, method="ward")
     sns.clustermap(correlations, vmin=-1.0, vmax=1.0, cmap="seismic",
                 row_linkage=linkage, col_linkage=linkage,
                 xticklabels=df_series.columns, yticklabels=df_series.columns, figsize=(15 * FIGSCALE, 15 * FIGSCALE))
