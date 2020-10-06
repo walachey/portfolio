@@ -11,12 +11,13 @@ from .template import get_template
 
 
 def analyze_portfolio(transaction_df, etf_df, plot_output_path):
-	plot.plot_cci(etf_df, transaction_df, save_path=plot_output_path + "cci.png")
+	plot.plot_cci(etf_df, transaction_df, save_path=plot_output_path + "cci.svg")
 
 	merged_df = load_data.merge_transaction_and_etf_data(transaction_df, etf_df)
 	global_state, symbol_state = stats.get_global_state(transaction_df, merged_df)
 
-	plot.plot_gain_development(transaction_df, merged_df, save_path=plot_output_path + "gains_development.png")
+	plot.plot_development(transaction_df, merged_df, save_path=plot_output_path + "gains_development.svg", show_gains=True)
+	plot.plot_development(transaction_df, merged_df, save_path=plot_output_path + "absolute_development.svg", show_gains=False)
 	plot.plot_clustermap(transaction_df, merged_df, save_path=plot_output_path + "clustermap.png")
 	plot.plot_portfolio_distribution(merged_df, save_path=plot_output_path + "distribution.png")
 

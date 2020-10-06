@@ -1,4 +1,5 @@
 import datetime, pytz
+import pygal
 import matplotlib.pyplot as plt
 import scipy.cluster.hierarchy
 import seaborn as sns
@@ -18,41 +19,50 @@ def plot_cci(etf_df, transaction_df, save_path=None):
         TP = cci_df[col]
         cci_df[col] = pandas.Series((TP - TP.rolling(n_days).mean()) / (0.015 * TP.rolling(n_days).std()))
     cci_df.columns = [etf_translations[c] for c in cci_df.columns]
+    
 
     from_date = transaction_df.date.max() - datetime.timedelta(days=60)
     cci_df = cci_df[cci_df.index > from_date]
-    cci_df = cci_df.rolling(7, center=True).mean()
-    #cci_df = cci_df.reset_index()
+    cci_df = cci_df.rolling(7, center=False).mean()
+    cci_df = cci_df.iloc[7:]
+    col_order = np.argsort(cci_df.iloc[-1, :].values)
+    columns = [cci_df.columns[i] for i in col_order[::-1]]
+    cci_df = cci_df[columns]
 
-    fig, ax = plt.subplots(figsize=(20 * FIGSCALE, 15 * FIGSCALE), dpi=DPI)
-    cci_df.plot(ax=ax)
-    ax.axhline(100, linestyle="--", c="k")
-    ax.axhline(-100, linestyle="--", c="k")
-    ax.legend(loc='center', bbox_to_anchor=(0.5, -0.25), mode="expand", ncol=2)
-    plt.title("Commodity Channel Index")
-    plt.tight_layout()
-    if save_path is not None:
-        plt.savefig(save_path, bbox_inches='tight')
-        plt.close()
+    chart = pygal.Line(fill=False, show_dots=False, width=20 * FIGSCALE * DPI, height=10 * FIGSCALE * DPI,
+                        range=(-110, 110))
+    chart.title = "Commodity Channel Index"
+    for col in cci_df.columns:
+        def fixna(v):
+            if pandas.isnull(v):
+                return None
+            return v
+        vals = [fixna(v) for v in cci_df[col]]
+        if np.all(pandas.isnull(vals)):
+            continue
+        chart.add(col, vals)
+    chart.x_labels = list(cci_df.index)
+
+    if save_path is None:
+        return chart.render(is_unicode=True)
     else:
-        plt.show()
+        chart.render_to_file(save_path)
+    return
 
-def plot_gain_development(transaction_df, merged_df, save_path=None):
-    df_cols = merged_df.pivot_table(index="date", columns="name", values="positive_gain", aggfunc=np.sum)
+def plot_development(transaction_df, merged_df, save_path=None, show_gains=False):
+    # Stackable data.
+    what = "positive_gain" if show_gains else "total"
+    df_cols = merged_df.pivot_table(index="date", columns="name", values=what, aggfunc=np.sum)
     df_cols.fillna(0.0, inplace=True)
-    
+    col_order = np.argsort(df_cols.iloc[-1, :])
+    columns = [df_cols.columns[i] for i in col_order]
+    df_cols = df_cols[columns]
+
+    # Actual gain, including negative positions.
     df_sum = merged_df.pivot_table(index="date", values=["total", "gain"], aggfunc=np.sum)
     df_sum.reset_index(inplace=True)
 
-    fig, ax = plt.subplots(figsize=(20 * FIGSCALE, 15 * FIGSCALE), dpi=DPI)
-    df_cols.plot.area(ax=ax)
-
-    fig.canvas.draw()
-
-    locs, labels = ax.get_yticks(), ax.get_yticklabels()
-
-    sns.lineplot(x="date", y="gain", color="k", linewidth=2.0, data=df_sum, ax=ax)
-
+    # Transaction costs over time.
     transaction_costs_df = transaction_df.pivot_table(index="date", values="transaction_cost", aggfunc=np.sum)
     transaction_costs_df.index = pandas.to_datetime(transaction_costs_df.index)
     transaction_costs_df = transaction_costs_df.resample("1D").sum()
@@ -61,25 +71,20 @@ def plot_gain_development(transaction_df, merged_df, save_path=None):
     transaction_costs_df.reset_index(inplace=True)
     transaction_costs_df.date = transaction_costs_df.date.apply(lambda d: d.to_pydatetime().date())
 
-    sns.lineplot(x="date", y="transaction_cost", color="r", linewidth=1.0, data=transaction_costs_df, ax=ax)
-
-    transaction_costs = transaction_df.transaction_cost.sum()
-    ax.axhline(transaction_costs, linestyle=":", color="r")
-    ylim = list(ax.get_ylim())
-    ylim[1] = max(ylim[1],transaction_costs + 10)
-    ax.set_ylim(*ylim)
-    plt.ylabel("Gain development")
-    ax.legend(loc='center', bbox_to_anchor=(0.5, -0.25), ncol=2)
-
-    plt.tight_layout()
+    chart = pygal.StackedBar(fill=True, show_dots=False, width=20 * FIGSCALE * DPI, height=10 * FIGSCALE * DPI)
+    chart.title = "Gains over time" if show_gains else "Portfolio value over time"
+    for col in df_cols.columns:
+        vals = df_cols[col]
+        chart.add(col, vals)
+    chart.x_labels = list(df_cols.index)
 
     if save_path is None:
-        plt.show()
+        return chart.render(is_unicode=True)
     else:
-        plt.savefig(save_path, bbox_inches='tight')
-        plt.close()
-
-
+        chart.render_to_file(save_path)
+    
+    return
+   
 def plot_clustermap(transaction_df, merged_df, save_path=None):
     df_series = merged_df.pivot_table(index="date", columns="name", values="price", aggfunc=np.sum)
 
