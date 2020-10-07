@@ -51,9 +51,13 @@ def plot_cci(etf_df, transaction_df, save_path=None):
 
 def plot_development(transaction_df, merged_df, save_path=None, show_gains=False):
     # Stackable data.
-    what = "positive_gain" if show_gains else "total"
-    df_cols = merged_df.pivot_table(index="date", columns="name", values=what, aggfunc=np.sum)
+    df_cols = merged_df.pivot_table(index="date", columns="name", values=["total", "initial_value"], aggfunc=np.sum)
+    if show_gains:
+        df_cols = df_cols["total"] - df_cols["initial_value"]
+    else:
+        df_cols = df_cols["total"]
     df_cols.fillna(0.0, inplace=True)
+    df_cols.clip(0.0, None, inplace=True)
     col_order = np.argsort(df_cols.iloc[-1, :])
     columns = [df_cols.columns[i] for i in col_order]
     df_cols = df_cols[columns]
