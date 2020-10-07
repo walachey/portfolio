@@ -2,7 +2,24 @@ import pandas
 import numpy as np
 
 def get_global_state(transaction_df, merged_df, as_html=True):
-	current_df = merged_df[merged_df.date == merged_df.date.max()]
+	current_df = merged_df[merged_df.date == merged_df.date.max()][["symbol", "name", "total", "gain", "pcs"]]
+
+	synced_symbols = set(current_df.symbol.unique())
+	additional_rows = []
+	for symbol in transaction_df.symbol_isin.unique():
+		if symbol in synced_symbols:
+			continue
+		sub_df = transaction_df[transaction_df.symbol_isin == symbol]
+		amount = sub_df.total.sum()
+		pieces = sub_df.pcs.sum()
+		if np.isclose(pieces, 0.0):
+			continue
+		additional_rows.append(dict(
+			symbol=symbol, name=sub_df.name.iloc[0],
+			total=amount,
+			gain=np.nan, pcs=pieces))
+	if len(additional_rows) > 0:
+		current_df = pandas.concat((current_df, pandas.DataFrame(additional_rows)), axis=0)
 
 	current_state = dict()
 
@@ -24,6 +41,8 @@ def get_global_state(transaction_df, merged_df, as_html=True):
 	portfolio_state["fraction"] = portfolio_state.fraction.apply(lambda d: "{:0.1%}".format(d))
 	
 	def format_money(f):
+		if pandas.isnull(f):
+			return "n/a"
 		return "{:3.2f}".format(f)
 		return f
 	for col in ("gain", "pcs", "total"):
