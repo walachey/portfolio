@@ -49,34 +49,48 @@ def plot_cci(etf_df, transaction_df, save_path=None):
         chart.render_to_file(save_path)
     return
 
-def plot_development(transaction_df, merged_df, save_path=None, show_gains=False):
+def plot_development(transaction_df, merged_df, save_path=None, show_gains=False, show_net_gain=False):
+    # Name map.
+    etf_translations = {isin: name for isin, name in transaction_df[["symbol_isin", "name"]].itertuples(index=False)}
+    
+    # Transaction costs over time.
+    transaction_costs_df = transaction_df.pivot_table(index="date", columns="symbol_isin",
+                                                        values="transaction_cost", aggfunc=np.sum)
+    transaction_costs_df.index = pandas.to_datetime(transaction_costs_df.index)
+    transaction_costs_df = transaction_costs_df.resample("1D").sum()
+    transaction_costs_df = transaction_costs_df.cumsum(axis=0)
+
     # Stackable data.
-    df_cols = merged_df.pivot_table(index="date", columns="name", values=["total", "initial_value"], aggfunc=np.sum)
+    df_cols = merged_df.pivot_table(index="date", columns="symbol", values=["total", "initial_value"], aggfunc=np.sum)
     if show_gains:
         df_cols = df_cols["total"] - df_cols["initial_value"]
     else:
         df_cols = df_cols["total"]
+
     df_cols.fillna(0.0, inplace=True)
+
+    if show_net_gain: # Subtract transaction costs.
+        # Fill missing dates.
+        transaction_costs_df.index = [i.date() for i in transaction_costs_df.index]
+        last_row = transaction_costs_df.iloc[-1]
+        for date in df_cols.index:
+            if date not in transaction_costs_df.index:
+                transaction_costs_df.loc[date] = last_row
+        for col in df_cols.columns:
+            df_cols[col] -= transaction_costs_df[col] # Same index.
+    
     df_cols.clip(0.0, None, inplace=True)
     col_order = np.argsort(df_cols.iloc[-1, :])
     columns = [df_cols.columns[i] for i in col_order]
     df_cols = df_cols[columns]
-
-    # Actual gain, including negative positions.
-    df_sum = merged_df.pivot_table(index="date", values=["total", "gain"], aggfunc=np.sum)
-    df_sum.reset_index(inplace=True)
-
-    # Transaction costs over time.
-    transaction_costs_df = transaction_df.pivot_table(index="date", values="transaction_cost", aggfunc=np.sum)
-    transaction_costs_df.index = pandas.to_datetime(transaction_costs_df.index)
-    transaction_costs_df = transaction_costs_df.resample("1D").sum()
-    transaction_costs_df.transaction_cost = np.cumsum(transaction_costs_df.transaction_cost)
-
-    transaction_costs_df.reset_index(inplace=True)
-    transaction_costs_df.date = transaction_costs_df.date.apply(lambda d: d.to_pydatetime().date())
-
+    df_cols.rename(etf_translations, axis=1, inplace=True)
+    
     chart = pygal.StackedBar(fill=True, show_dots=False, width=20 * FIGSCALE * DPI, height=10 * FIGSCALE * DPI)
     chart.title = "Gains over time" if show_gains else "Portfolio value over time"
+    if show_net_gain:
+        chart.title += " (net, minus transaction costs)"
+    else:
+        chart.title += " (gross)"
     for col in df_cols.columns:
         vals = df_cols[col]
         chart.add(col, vals)

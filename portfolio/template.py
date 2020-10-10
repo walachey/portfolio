@@ -23,9 +23,17 @@ def get_template():
 <h2>Development</h2>
 <div class="">
 	<div class="row">
-	<div class="col-md-7"><span class="switch-development btn button">toggle</span>
-		<figure class="gains_total"><embed type="image/svg+xml" src="gains_development.svg" /></figure>
-		<figure class="gains_total hidden"><embed type="image/svg+xml" src="absolute_development.svg" /></figure>
+	<div class="col-md-7">
+		<button class="switch-development btn btn-secondary">Toggle gains/total</button>
+		<button class="switch-net-gross btn btn-secondary">Toggle net/gross</button>
+		<div class="net_gross">
+			<figure class="gains_total"><embed type="image/svg+xml" src="net_gains_development.svg" /></figure>
+			<figure class="gains_total hidden"><embed type="image/svg+xml" src="net_absolute_development.svg" /></figure>
+		</div>
+		<div class="net_gross hidden">
+			<figure class="gains_total"><embed type="image/svg+xml" src="gross_gains_development.svg" /></figure>
+			<figure class="gains_total hidden"><embed type="image/svg+xml" src="gross_absolute_development.svg" /></figure>
+		</div>
 	</div>
 	<div class="col-md-5"><img src="distribution.png" class="img-responsive" /></div>
 	</div>
@@ -43,8 +51,12 @@ def get_template():
 <script>
 $(document).ready(function() {
 	$('.switch-development').on('click', function() {
-		$('.switch-development').removeClass('active');
+		$('.switch-development').toggleClass('active');
 		$('.gains_total').toggleClass('hidden');
+		});
+	$('.switch-net-gross').on('click', function() {
+		$('.switch-net-gross').toggleClass('active');
+		$('.net_gross').toggleClass('hidden');
 		});
 });
 </script>

@@ -16,8 +16,11 @@ def analyze_portfolio(transaction_df, etf_df, plot_output_path):
 	merged_df = load_data.merge_transaction_and_etf_data(transaction_df, etf_df)
 	global_state, symbol_state = stats.get_global_state(transaction_df, merged_df)
 
-	plot.plot_development(transaction_df, merged_df, save_path=plot_output_path + "gains_development.svg", show_gains=True)
-	plot.plot_development(transaction_df, merged_df, save_path=plot_output_path + "absolute_development.svg", show_gains=False)
+	for show_gains, gains_prefix in ((True, "gains"), (False, "absolute")):
+		for show_net_gain, net_prefix in ((True, "net"), (False, "gross")):
+			plot.plot_development(transaction_df, merged_df,
+				save_path=plot_output_path + "{}_{}_development.svg".format(net_prefix, gains_prefix),
+				show_gains=show_gains, show_net_gain=show_net_gain)
 	plot.plot_clustermap(transaction_df, merged_df, save_path=plot_output_path + "clustermap.png")
 	plot.plot_portfolio_distribution(merged_df, save_path=plot_output_path + "distribution.png")
 
