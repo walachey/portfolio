@@ -11,6 +11,7 @@ from .template import get_template
 
 
 def analyze_portfolio(transaction_df, etf_df, plot_output_path):
+	plot.plot_history(etf_df, transaction_df, save_path=plot_output_path + "history.svg")
 	plot.plot_cci(etf_df, transaction_df, save_path=plot_output_path + "cci.svg")
 
 	merged_df = load_data.merge_transaction_and_etf_data(transaction_df, etf_df)

@@ -38,11 +38,15 @@ def get_template():
 	<div class="col-md-5"><img src="distribution.png" class="img-responsive" /></div>
 	</div>
 </div>
-<h2>More</h2>
+<h2>Symbol properties</h2>
 <div class="">
 	<div class="row">
 	<div class="col-md-5"><img src="clustermap.png" class="img-responsive" /></div>
-	<div class="col-md-7"><figure><embed type="image/svg+xml" src="cci.svg" /></figure></div>
+	<div class="col-md-7">
+		<button class="switch-history-cci btn btn-secondary">Toggle history/CCI</button>
+			<figure class="history-cci hidden"><embed type="image/svg+xml" src="cci.svg" /></figure>
+			<figure class="history-cci"><embed type="image/svg+xml" src="history.svg" /></figure>
+	</div>
 	</div>
 </div>
 <h2>Log</h2>
@@ -57,6 +61,10 @@ $(document).ready(function() {
 	$('.switch-net-gross').on('click', function() {
 		$('.switch-net-gross').toggleClass('active');
 		$('.net_gross').toggleClass('hidden');
+		});
+	$('.switch-history-cci').on('click', function() {
+		$('.switch-history-cci').toggleClass('active');
+		$('.history-cci').toggleClass('hidden');
 		});
 });
 </script>

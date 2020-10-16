@@ -10,7 +10,44 @@ import itertools
 DPI = 100
 FIGSCALE = 0.5
 
+def plot_history(etf_df, transaction_df, save_path=None):
+    max_date = etf_df.date.max()
+    etf_df = etf_df.pivot_table(index="date", values="price", columns="symbol")
+    etf_translations = {isin: name for isin, name in transaction_df[["symbol_isin", "name"]].itertuples(index=False)}
+    etf_df.columns = [etf_translations[c] for c in etf_df.columns]
+    
+
+    from_date = max_date - datetime.timedelta(days=30)
+    etf_df = etf_df[etf_df.index > from_date]
+    for symbol in etf_df.columns:
+        offset = etf_df[symbol].iloc[0]
+        etf_df[symbol] /= offset
+        etf_df[symbol] -= 1.0
+    col_order = np.argsort(etf_df.iloc[-1, :].values)
+    columns = [etf_df.columns[i] for i in col_order[::-1]]
+    etf_df = etf_df[columns]
+
+    chart = pygal.Line(fill=False, show_dots=False, width=20 * FIGSCALE * DPI, height=10 * FIGSCALE * DPI)
+    chart.title = "Fractional change over last month"
+    for col in etf_df.columns:
+        def fixna(v):
+            if pandas.isnull(v):
+                return None
+            return v
+        vals = [fixna(v) for v in etf_df[col]]
+        if np.all(pandas.isnull(vals)):
+            continue
+        chart.add(col, vals)
+    chart.x_labels = list(etf_df.index)
+
+    if save_path is None:
+        return chart.render(is_unicode=True)
+    else:
+        chart.render_to_file(save_path)
+    return
+
 def plot_cci(etf_df, transaction_df, save_path=None):
+    max_date = etf_df.date.max()
     cci_df = etf_df.pivot_table(index="date", values="price", columns="symbol")
     etf_translations = {isin: name for isin, name in transaction_df[["symbol_isin", "name"]].itertuples(index=False)}
 
@@ -21,7 +58,7 @@ def plot_cci(etf_df, transaction_df, save_path=None):
     cci_df.columns = [etf_translations[c] for c in cci_df.columns]
     
 
-    from_date = transaction_df.date.max() - datetime.timedelta(days=60)
+    from_date = max_date - datetime.timedelta(days=60)
     cci_df = cci_df[cci_df.index > from_date]
     cci_df = cci_df.rolling(7, center=False).mean()
     cci_df = cci_df.iloc[7:]
