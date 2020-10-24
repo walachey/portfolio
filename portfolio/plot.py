@@ -23,12 +23,13 @@ def plot_history(etf_df, transaction_df, save_path=None):
         offset = etf_df[symbol].iloc[0]
         etf_df[symbol] /= offset
         etf_df[symbol] -= 1.0
+        etf_df[symbol] *= 100
     col_order = np.argsort(etf_df.iloc[-1, :].values)
     columns = [etf_df.columns[i] for i in col_order[::-1]]
     etf_df = etf_df[columns]
 
     chart = pygal.Line(fill=False, show_dots=False, width=20 * FIGSCALE * DPI, height=10 * FIGSCALE * DPI)
-    chart.title = "Fractional change over last month"
+    chart.title = "%% change over last month"
     for col in etf_df.columns:
         def fixna(v):
             if pandas.isnull(v):
