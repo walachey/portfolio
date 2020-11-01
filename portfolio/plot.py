@@ -1,3 +1,4 @@
+import calendar
 import datetime, pytz
 import pygal
 import matplotlib.pyplot as plt
@@ -29,7 +30,7 @@ def plot_history(etf_df, transaction_df, save_path=None):
     etf_df = etf_df[columns]
 
     chart = pygal.Line(fill=False, show_dots=False, width=20 * FIGSCALE * DPI, height=10 * FIGSCALE * DPI)
-    chart.title = "%% change over last month"
+    chart.title = "% change over last month"
     for col in etf_df.columns:
         def fixna(v):
             if pandas.isnull(v):
@@ -188,6 +189,69 @@ def plot_portfolio_distribution(merged_df, save_path=None):
     fig, ax = plt.subplots(figsize=(15 * FIGSCALE, 15 * FIGSCALE), dpi=DPI)
     plt.pie(x=current_state.total, labels=labels)
     
+    if save_path is None:
+        plt.show()
+    else:
+        plt.savefig(save_path, bbox_inches='tight')
+        plt.close()
+
+def plot_volatility(etf_df, transaction_df, merged_df, save_path=None, timedelta="month"):
+    # Name map.
+    etf_translations = {isin: name for isin, name in transaction_df[["symbol_isin", "name"]].itertuples(index=False)}
+    
+    min_number_of_days = dict(month=23, year=300)[timedelta]
+    
+    data = []
+    begin_date = transaction_df.date.min().replace(day=1)
+    end_date = merged_df.date.max()
+    
+    while begin_date < end_date:
+        if timedelta == "month":
+            end_of_period = begin_date.replace(day=calendar.monthrange(begin_date.year, begin_date.month)[1])
+        elif timedelta == "year":
+            end_of_period = begin_date.replace(year=begin_date.year + 1) - datetime.timedelta(days=1)
+        month_df_all = merged_df[(merged_df.date >= begin_date) & (merged_df.date <= end_of_period)]
+        month_df = month_df_all.pivot_table(index="date", columns="symbol", values="price")
+        
+        for symbol in month_df.columns:
+            df = month_df_all[month_df_all.symbol == symbol]
+            if df.pcs.sum() <= 0:
+                continue
+            values = month_df[symbol]
+            values = values[~pandas.isnull(values)]
+            min_date, max_date = values.index.min(), values.index.max()
+            if (max_date - min_date).days < min_number_of_days:
+                continue
+            gain = (values[-1] - values[0]) / values[0]
+            data.append(dict(
+                symbol=etf_translations[symbol],
+                gain=gain * 100.0))
+        
+        if timedelta == "month":
+            month = begin_date.month + 1
+            year = begin_date.year
+            if month > 12:
+                month = 1
+                year += 1
+            begin_date = datetime.date(year, month, 1)
+        elif timedelta == "year":
+            begin_date = begin_date.replace(year=begin_date.year + 1)
+            
+    data = pandas.DataFrame(data)
+    
+    data.symbol = [ "{} (N={:1d})".format(i[:30], (data.symbol == i).sum()) for i in data.symbol]
+    data_means = data.pivot_table(index="symbol", values="gain", aggfunc="std")
+    if data_means.shape[0] > 0:
+        data_means = data_means.sort_values("gain", ascending=False)
+        order = data_means.index
+    else:
+        order = None
+    fig, ax = plt.subplots(figsize=(20 * FIGSCALE, 5 * FIGSCALE), dpi=DPI)
+    sns.barplot(y="symbol", x="gain", data=data, ax=ax, order=order, ci=66.6)
+    plt.title("Bootstrap 66.6% CI of the mean gain per {}".format(timedelta))
+    plt.xlabel("% gain")
+    plt.ylabel(None)
+            
     if save_path is None:
         plt.show()
     else:

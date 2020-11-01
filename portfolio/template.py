@@ -49,6 +49,16 @@ def get_template():
 	</div>
 	</div>
 </div>
+<h2>Volatility</h2>
+<div class="">
+	<div class="row">
+	<div class="col-md-7">
+		<button class="switch-volatility-year-month btn btn-secondary">Toggle per month/year</button>
+			<figure class="volatility-year-month hidden"><img src="volatility_per_year.png" class="img-responsive" /></figure>
+			<figure class="volatility-year-month"><img src="volatility_per_month.png" class="img-responsive" /></figure>
+	</div>
+	</div>
+</div>
 <h2>Log</h2>
 {{ log }}
 
@@ -65,6 +75,10 @@ $(document).ready(function() {
 	$('.switch-history-cci').on('click', function() {
 		$('.switch-history-cci').toggleClass('active');
 		$('.history-cci').toggleClass('hidden');
+		});
+	$('.switch-volatility-year-month').on('click', function() {
+		$('.switch-volatility-year-month').toggleClass('active');
+		$('.volatility-year-month').toggleClass('hidden');
 		});
 });
 </script>

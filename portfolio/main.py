@@ -24,7 +24,9 @@ def analyze_portfolio(transaction_df, etf_df, plot_output_path):
 				show_gains=show_gains, show_net_gain=show_net_gain)
 	plot.plot_clustermap(transaction_df, merged_df, save_path=plot_output_path + "clustermap.png")
 	plot.plot_portfolio_distribution(merged_df, save_path=plot_output_path + "distribution.png")
-
+	for period in ("month", "year"):
+		plot.plot_volatility(etf_df, transaction_df, merged_df, timedelta=period,
+								save_path=plot_output_path + "volatility_per_{}.png".format(period))
 	return global_state, symbol_state
 
 def update_and_analyze_portfolio(google_sheets_url, etf_data_path, plot_output_path, data_source):
