@@ -57,7 +57,69 @@ def load_transactions_from_google_sheets(google_sheets_url):
 
     return transaction_df
 
-def update_and_store_etf_data(transaction_df, etf_df, data_source, save_folder_path=None):
+def fetch_etf_data_q(isin, since_when, data_source, isin_to_wkn_map, yesterday):
+    try:
+        wkn = isin_to_wkn_map[isin]
+        assert wkn is not None
+    except:
+        print("\t ISIN {} not mapped to WKN".format(isin))
+        return None
+    def parse_date(d):
+        return datetime.date(*list(map(int, d.split(".")))[::-1])
+    def parse_value(v):
+        if v == "-":
+            return np.nan
+        v = v.replace(".", "")
+        v = v.replace(",", ".")
+        v = float(v)
+        return v
+        
+    df = None
+    for subpage in ("fonds", "aktien"):
+        try:
+            df = pandas.read_html(data_source.format(subpage, wkn),
+                        decimal="~", thousands="#", parse_dates=False,
+                        converters=dict(Datum=parse_date, Schluss=parse_value))
+            break
+        except Exception as e:
+            if subpage == "aktien":
+                print("\tError: " + str(e))
+            continue
+    if df is None:
+        return None
+
+    assert len(df) == 1
+
+    df = df[0]
+    df = df[["Datum", "Schluss"]]
+    df.columns = ["date", "price"]
+    #df["date"] = df.date.apply(lambda d: datetime.date(list(map(int, d.split("."))[::-1])))
+
+
+    df = df[~np.isnan(df.price)]
+    #df["date"] = df.date.apply(lambda d: d.to_pydatetime().date())
+    df = df[df.date >= since_when]
+    df = df[df.date <= yesterday]
+    df["symbol"] = isin
+    return df.reset_index(drop=True)
+
+def fetch_etf_data_bf(isin, since_when, yesterday, data_source):
+    import urllib, json
+    url = data_source.format(isin=isin, min_date=since_when, max_date=yesterday)
+    try:
+        with urllib.request.urlopen(url) as url:
+            data = json.loads(url.read().decode())
+    except urllib.error.HTTPError as e:
+        print("\tRequest failed ({}).".format(str(e)))
+        return None
+    assert data["isin"] == isin
+    data = data["data"]
+    data = [dict(symbol=isin,
+                 price=float(d["close"]),
+                 date=datetime.date(*map(int, d["date"].split("-")))) for d in data]
+    return pandas.DataFrame(data)
+
+def update_and_store_etf_data(transaction_df, etf_df, data_source, data_source_bf, save_folder_path=None):
     
     yesterday = datetime.date.today() - datetime.timedelta(days=1)
     
@@ -67,52 +129,6 @@ def update_and_store_etf_data(transaction_df, etf_df, data_source, save_folder_p
     for isin, wkn in transaction_df[["symbol_isin", "symbol_wkn"]].itertuples(index=False):
         if isin and wkn:
             isin_to_wkn_map[isin] = wkn
-
-    def fetch_etf_data(isin, since_when):
-        nonlocal isin_to_wkn_map, yesterday
-
-        try:
-            wkn = isin_to_wkn_map[isin]
-            assert wkn is not None
-        except:
-            print("\t ISIN {} not mapped to WKN".format(isin))
-            return None
-        def parse_date(d):
-            return datetime.date(*list(map(int, d.split(".")))[::-1])
-        def parse_value(v):
-            v = v.replace(".", "")
-            v = v.replace(",", ".")
-            v = float(v)
-            return v
-            
-        df = None
-        for subpage in ("fonds", "aktien"):
-            try:
-                df = pandas.read_html(data_source.format(subpage, wkn),
-                             decimal="~", thousands="#", parse_dates=False,
-                             converters=dict(Datum=parse_date, Schluss=parse_value))
-                break
-            except Exception as e:
-                if subpage == "aktien":
-                    print(str(e))
-                continue
-        if df is None:
-            return None
-
-        assert len(df) == 1
-
-        df = df[0]
-        df = df[["Datum", "Schluss"]]
-        df.columns = ["date", "price"]
-        #df["date"] = df.date.apply(lambda d: datetime.date(list(map(int, d.split("."))[::-1])))
-
-
-        df = df[~np.isnan(df.price)]
-        #df["date"] = df.date.apply(lambda d: d.to_pydatetime().date())
-        df = df[df.date >= since_when]
-        df = df[df.date <= yesterday]
-        df["symbol"] = isin
-        return df.reset_index(drop=True)
     
     to_update = dict()
     for etf, df in etf_df.groupby("symbol"):
@@ -128,10 +144,22 @@ def update_and_store_etf_data(transaction_df, etf_df, data_source, save_folder_p
     
     additional_data = []
     for etf, update_begin in to_update.items():
-        print("Updating {}...\t[last state {}]".format(etf, max_date.isoformat()))
-        new_data = fetch_etf_data(etf, update_begin)
+        print("Updating {}...\t[last state {}]".format(etf, update_begin.isoformat()))
+        kwargs = dict(isin=etf, since_when=update_begin, data_source=data_source_bf,
+                      yesterday=yesterday)
+        new_data = fetch_etf_data_bf(**kwargs)
+        
+        if new_data is None or new_data.shape[0] == 0:
+            print("\tTrying secondary data source..")
+            kwargs["data_source"] = data_source
+            kwargs["isin_to_wkn_map"] = isin_to_wkn_map
+            new_data = fetch_etf_data_q(**kwargs)
+
         if new_data is not None and new_data.shape[0] > 0:
+            print("\tOK ({} new data points, max date: {}).".format(new_data.shape[0], new_data.date.max()))
             additional_data.append(new_data)
+        else:
+            print("\tFailed.")
             
     if len(additional_data) > 0:
         additional_data = pandas.concat(additional_data)

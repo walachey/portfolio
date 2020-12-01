@@ -29,7 +29,7 @@ def analyze_portfolio(transaction_df, etf_df, plot_output_path):
 								save_path=plot_output_path + "volatility_per_{}.png".format(period))
 	return global_state, symbol_state
 
-def update_and_analyze_portfolio(google_sheets_url, etf_data_path, plot_output_path, data_source):
+def update_and_analyze_portfolio(google_sheets_url, etf_data_path, plot_output_path, data_source, data_source_bf):
 
 	sns.set_palette("Set2")
 	
@@ -45,7 +45,9 @@ def update_and_analyze_portfolio(google_sheets_url, etf_data_path, plot_output_p
 	else:
 		save_folder_path = None
 
-	etf_df = crawl_data.update_and_store_etf_data(transaction_df, etf_df, data_source=data_source, save_folder_path=save_folder_path)
+	etf_df = crawl_data.update_and_store_etf_data(transaction_df, etf_df,
+													data_source=data_source, data_source_bf=data_source_bf,
+													save_folder_path=save_folder_path)
 
 	try:
 		global_state, symbol_state = analyze_portfolio(transaction_df, etf_df, plot_output_path)
