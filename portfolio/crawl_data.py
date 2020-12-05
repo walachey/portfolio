@@ -205,7 +205,10 @@ def update_and_store_etf_data(transaction_df, etf_df, data_source, data_source_b
             print("\tFailed.")
         
     if "driver" in selenium_state:
-        selenium_state["driver"].close()
+        try:
+            selenium_state["driver"].close()
+        except:
+            pass
 
     if len(additional_data) > 0:
         additional_data = pandas.concat(additional_data)
