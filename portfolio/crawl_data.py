@@ -103,26 +103,65 @@ def fetch_etf_data_q(isin, since_when, data_source, isin_to_wkn_map, yesterday):
     df["symbol"] = isin
     return df.reset_index(drop=True)
 
-def fetch_etf_data_bf(isin, since_when, yesterday, data_source):
-    import urllib, json
-    url = data_source.format(isin=isin, min_date=since_when, max_date=yesterday)
+def fetch_etf_data_bf(isin, since_when, yesterday, data_source, state):
+    
+    import time
+    import selenium
+    import selenium.common.exceptions
+    from selenium.webdriver.common.keys import Keys
+    
+    if "driver" in state:
+        driver = state["driver"]
+    else:
+        import os
+        os.environ['MOZ_HEADLESS'] = "0"
+        driver = selenium.webdriver.Firefox()
+        driver.implicitly_wait(2)
+        state["driver"] = driver
+        
+    driver.get(data_source)
+    elem = driver.find_element_by_id("mat-input-0")
+    elem.send_keys(isin)
+    time.sleep(3.0)
+    elem.send_keys(Keys.ENTER)
+    
+    time.sleep(2.0)
+    driver.get(driver.current_url + "/kurshistorie/historische-kurse-und-umsaetze")
+
     try:
-        with urllib.request.urlopen(url) as url:
-            data = json.loads(url.read().decode())
-    except urllib.error.HTTPError as e:
-        print("\tRequest failed ({}).".format(str(e)))
+        elem = driver.find_element_by_xpath('//th[text()="Datum"]')
+    except selenium.common.exceptions.NoSuchElementException as e:
+        print("\tTable could not be loaded. ({})".format(str(e)))
         return None
-    assert data["isin"] == isin
-    data = data["data"]
-    data = [dict(symbol=isin,
-                 price=float(d["close"]),
-                 date=datetime.date(*map(int, d["date"].split("-")))) for d in data]
-    return pandas.DataFrame(data)
+    table = elem.find_element_by_xpath("..").find_element_by_xpath("..").find_element_by_xpath("..")
+    
+    table_html = table.get_attribute("outerHTML")
+    
+    table = pandas.read_html(table_html,
+                             thousands=None, decimal=",",
+                             parse_dates=False)
+    if not table:
+        print("\tNo table could be parsed.")
+        return None
+    df = table[0]
+    
+    date_parser = lambda x: datetime.datetime.strptime(str(x), "%d.%m.%y").date()
+    df["Datum"] = df.Datum.apply(date_parser)
+    df = df[["Datum", "Schluss"]].copy()
+    df.columns = ["date", "price"]
+    df["symbol"] = isin
+    
+    df = df[~np.isnan(df.price)]
+    df = df[df.date >= since_when]
+    df = df[df.date <= yesterday]
+    
+    return df
 
 def update_and_store_etf_data(transaction_df, etf_df, data_source, data_source_bf, save_folder_path=None):
     
     yesterday = datetime.date.today() - datetime.timedelta(days=1)
-    
+    selenium_state = dict()
+
     all_etfs = set(transaction_df.symbol_isin.unique())
 
     isin_to_wkn_map = dict()
@@ -147,7 +186,11 @@ def update_and_store_etf_data(transaction_df, etf_df, data_source, data_source_b
         print("Updating {}...\t[last state {}]".format(etf, update_begin.isoformat()))
         kwargs = dict(isin=etf, since_when=update_begin, data_source=data_source_bf,
                       yesterday=yesterday)
-        new_data = fetch_etf_data_bf(**kwargs)
+        try:
+            new_data = fetch_etf_data_bf(state=selenium_state, **kwargs)
+        except Exception as e:
+            print("\tFailed with exception {}.".format(str(e)))
+            continue
         
         if new_data is None or new_data.shape[0] == 0:
             print("\tTrying secondary data source..")
@@ -160,7 +203,10 @@ def update_and_store_etf_data(transaction_df, etf_df, data_source, data_source_b
             additional_data.append(new_data)
         else:
             print("\tFailed.")
-            
+        
+    if "driver" in selenium_state:
+        selenium_state["driver"].close()
+
     if len(additional_data) > 0:
         additional_data = pandas.concat(additional_data)
         min_date = min(additional_data.groupby("symbol").date.max())
@@ -176,4 +222,5 @@ def update_and_store_etf_data(transaction_df, etf_df, data_source, data_source_b
                 filename = save_folder_path + "/{}_{}.pickle".format(symbol, date)
                 print("\tSaving {}...".format(filename))
                 df.to_pickle(filename)
+
     return etf_df
