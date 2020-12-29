@@ -24,12 +24,14 @@ def get_global_state(transaction_df, merged_df, as_html=True):
 	current_state = dict()
 
 	current_state["Total investment amount"] = transaction_df.total.sum()
-	current_state["Total fees"] = transaction_df.transaction_cost.sum()
+	fees_idx = transaction_df.transaction_cost.values > 0.0
+	current_state["Total fees"] = transaction_df.transaction_cost.values[fees_idx].sum()
+	current_state["Total payouts"] = -transaction_df.transaction_cost.values[~fees_idx].sum()
 	current_state["Total money spent"] = current_state["Total investment amount"] + current_state["Total fees"]
 	current_state["Total fees (%)"] = "{:0.2%}".format(current_state["Total fees"] / current_state["Total investment amount"])
 
 	current_state["Portfolio value"] = current_df.total.sum()
-	current_state["Portfolio gain (netto)"] = current_state["Portfolio value"] - current_state["Total investment amount"]
+	current_state["Portfolio gain (netto)"] = current_state["Portfolio value"] - current_state["Total investment amount"] + current_state["Total payouts"]
 	current_state["Portfolio gain (brutto)"] = current_state["Portfolio gain (netto)"] - current_state["Total fees"]
 
 	current_state = pandas.Series(current_state).to_frame()
