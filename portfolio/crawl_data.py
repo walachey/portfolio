@@ -54,6 +54,7 @@ def load_transactions_from_google_sheets(google_sheets_url):
                 name = name[(name.find(cut)):]
         return name
     transaction_df["name"] = transaction_df.name.apply(clean_name)
+    transaction_df.fillna(0.0, inplace=True)
 
     return transaction_df
 
@@ -113,19 +114,28 @@ def fetch_etf_data_bf(isin, since_when, yesterday, data_source, state):
     if "driver" in state:
         driver = state["driver"]
     else:
+        from selenium.webdriver.firefox.options import Options
         import os
-        os.environ['MOZ_HEADLESS'] = "0"
-        driver = selenium.webdriver.Firefox()
-        driver.implicitly_wait(2)
+        os.environ['MOZ_HEADLESS'] = "1"
+        options = Options()
+        options.add_argument("start-maximized")
+        options.add_argument("disable-infobars")
+        options.add_argument("--disable-extensions")
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-application-cache')
+        options.add_argument('--disable-gpu')
+        options.add_argument("--disable-dev-shm-usage")
+        driver = selenium.webdriver.Firefox(options=options)
+        driver.implicitly_wait(5)
         state["driver"] = driver
         
     driver.get(data_source)
+    time.sleep(1.0)
     elem = driver.find_element_by_id("mat-input-0")
     elem.send_keys(isin)
     time.sleep(3.0)
     elem.send_keys(Keys.ENTER)
-    
-    time.sleep(2.0)
+    time.sleep(3.0)
     driver.get(driver.current_url + "/kurshistorie/historische-kurse-und-umsaetze")
 
     try:
@@ -207,6 +217,7 @@ def update_and_store_etf_data(transaction_df, etf_df, data_source, data_source_b
     if "driver" in selenium_state:
         try:
             selenium_state["driver"].close()
+            selenium_state["driver"].quit()
         except:
             pass
 
