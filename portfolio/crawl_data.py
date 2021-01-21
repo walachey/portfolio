@@ -52,6 +52,9 @@ def load_transactions_from_google_sheets(google_sheets_url):
         for cut in ("MSCI", ):
             if cut in name:
                 name = name[(name.find(cut)):]
+        for cut in ("iShares Global", ):
+            if cut in name:
+                name = name[(name.find(cut) + len(cut) + 1):]
         return name
     transaction_df["name"] = transaction_df.name.apply(clean_name)
     transaction_df.fillna(0.0, inplace=True)
@@ -103,6 +106,27 @@ def fetch_etf_data_q(isin, since_when, data_source, isin_to_wkn_map, yesterday):
     df = df[df.date <= yesterday]
     df["symbol"] = isin
     return df.reset_index(drop=True)
+
+def fetch_etf_data_bm(isin, since_when, yesterday, data_source):
+    import urllib.request, json 
+    data_source = data_source.format(isin)
+    with urllib.request.urlopen(data_source) as url:
+        df = json.loads(url.read().decode())
+        
+    df = df["instruments"][0]
+    tz_offset = int(df["currentTimezoneOffset"])
+    tz_offset = pytz.FixedOffset(-tz_offset / 60)
+    df = [(tz_offset.localize(datetime.datetime.fromtimestamp(ts / 1000)).astimezone(pytz.UTC).date(),
+            value) for (ts, value) in df["data"]]
+    
+    df = pandas.DataFrame(df, columns=("date", "price"))
+    df["symbol"] = isin
+    
+    df = df[~np.isnan(df.price)]
+    df = df[df.date >= since_when]
+    df = df[df.date <= yesterday]
+    
+    return df
 
 def fetch_etf_data_bf(isin, since_when, yesterday, data_source, state):
     
@@ -167,7 +191,7 @@ def fetch_etf_data_bf(isin, since_when, yesterday, data_source, state):
     
     return df
 
-def update_and_store_etf_data(transaction_df, etf_df, data_source, data_source_bf, save_folder_path=None):
+def update_and_store_etf_data(transaction_df, etf_df, data_source, data_source_bf, data_source_bm, save_folder_path=None):
     
     yesterday = datetime.date.today() - datetime.timedelta(days=1)
     selenium_state = dict()
@@ -204,6 +228,15 @@ def update_and_store_etf_data(transaction_df, etf_df, data_source, data_source_b
         
         if new_data is None or new_data.shape[0] == 0:
             print("\tTrying secondary data source..")
+            kwargs["data_source"] = data_source_bm
+            try:
+                new_data = fetch_etf_data_bm(**kwargs)
+            except Exception as e:
+                print("\tFailed with exception {}.".format(str(e)))
+                new_data = None
+
+        if new_data is None or new_data.shape[0] == 0:
+            print("\tTrying tertiary data source..")
             kwargs["data_source"] = data_source
             kwargs["isin_to_wkn_map"] = isin_to_wkn_map
             new_data = fetch_etf_data_q(**kwargs)
