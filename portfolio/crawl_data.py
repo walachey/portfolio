@@ -52,7 +52,7 @@ def load_transactions_from_google_sheets(google_sheets_url):
         for cut in ("MSCI", ):
             if cut in name:
                 name = name[(name.find(cut)):]
-        for cut in ("iShares Global", ):
+        for cut in ("iShares Global", "Lyxor Core STOXX", "Amundi Stoxx", "Market Access"):
             if cut in name:
                 name = name[(name.find(cut) + len(cut) + 1):]
         return name
