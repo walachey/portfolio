@@ -61,6 +61,30 @@ def load_transactions_from_google_sheets(google_sheets_url):
 
     return transaction_df
 
+def load_categories_from_google_sheets(url):
+    df = requests.get(url)
+    df = df.content.decode("utf-8")
+    df = df.replace('","', '"\t"')
+    csv_data = io.StringIO(df)
+    
+    df = pandas.read_csv(csv_data, sep="\t",quoting = csv.QUOTE_ALL,
+                         quotechar='"', decimal=",", thousands=".",
+                         )
+    
+    df = df.drop("title", axis=1)
+    categories = list(set(df.columns) - set(["symbol"]))
+    def x_to_1(value):
+        if value == "x" or value == "X":
+            return 1
+        return 0
+    for cat in categories:
+        df[cat] = df[cat].apply(x_to_1)
+    df[categories] = df[categories].astype(np.int)
+    df = pandas.melt(df, id_vars="symbol", value_vars=categories)
+    df = df[df.value == 1].drop("value", axis=1)
+    df.columns = ["symbol", "category"]
+    return df
+
 def fetch_etf_data_q(isin, since_when, data_source, isin_to_wkn_map, yesterday):
     try:
         wkn = isin_to_wkn_map[isin]

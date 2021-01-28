@@ -35,7 +35,11 @@ def get_template():
 			<figure class="gains_total hidden"><embed type="image/svg+xml" src="gross_absolute_development.svg" /></figure>
 		</div>
 	</div>
-	<div class="col-md-5"><img src="distribution.png" class="img-responsive" /></div>
+	<div class="col-md-5">
+		<button class="switch-distribution-categories-symbols btn btn-secondary">Toggle symbols/categories</button>
+			<figure class="distribution-categories-symbols hidden"><img src="category_distribution.png" class="img-responsive" /></figure>
+			<figure class="distribution-categories-symbols"><img src="distribution.png" class="img-responsive" /></figure>
+	</div>
 	</div>
 </div>
 <h2>Symbol properties</h2>
@@ -71,6 +75,10 @@ $(document).ready(function() {
 	$('.switch-net-gross').on('click', function() {
 		$('.switch-net-gross').toggleClass('active');
 		$('.net_gross').toggleClass('hidden');
+		});
+	$('.switch-distribution-categories-symbols').on('click', function() {
+		$('.switch-distribution-categories-symbols').toggleClass('active');
+		$('.distribution-categories-symbols').toggleClass('hidden');
 		});
 	$('.switch-history-cci').on('click', function() {
 		$('.switch-history-cci').toggleClass('active');

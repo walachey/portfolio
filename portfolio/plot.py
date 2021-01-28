@@ -195,6 +195,51 @@ def plot_portfolio_distribution(merged_df, save_path=None):
         plt.savefig(save_path, bbox_inches='tight')
         plt.close()
 
+def plot_portfolio_category_distribution(merged_df, category_df, save_path=None):
+
+    current_state = merged_df[merged_df.date == merged_df.date.max()]
+    current_state = current_state.pivot_table(index="symbol", values="total", aggfunc=np.sum)
+    current_state = current_state.reset_index()
+    current_state = current_state.sort_values("total", ascending=False)
+
+    n_categories = len(category_df.category.unique())
+    columns = 5
+    rows = 1 + n_categories // columns
+
+    fig, axes = plt.subplots(rows, columns, figsize=(3 * columns * FIGSCALE, 3 * rows * FIGSCALE), dpi=DPI)
+    axes = list(itertools.chain(*axes))
+    for ax in axes:
+        ax.set_axis_off()
+
+    category_order = []
+    for (category, df) in category_df.groupby("category"):
+        df = current_state[current_state.symbol.isin(df.symbol.unique())]
+        category_order.append((df.total.sum(), category))
+    category_order = sorted(category_order)[::-1]
+
+    for ax, (_, category) in zip(axes, category_order):
+        df = category_df[category_df.category == category]
+        symbols = list(df.symbol.unique())
+        idx = current_state.symbol.isin(symbols)
+        hit_df = current_state[idx]
+        miss_df = current_state[~idx]
+        labels = [category, "other"]
+        ax.pie(x=[hit_df.total.sum(), miss_df.total.sum()],
+               colors=["#dddd00", "#aaaabb"],
+               autopct='%1.1f%%', startangle=90, pctdistance=0.85)
+        ax.axis("equal")
+        ax.add_artist(plt.Circle((0.0, 0.0), 0.70, fc='white'))
+        legend = ax.legend(labels[0:1], loc="center", handlelength=0, handletextpad=0)
+        legend.set_zorder(10)
+
+    plt.tight_layout()
+
+    if save_path is None:
+        plt.show()
+    else:
+        plt.savefig(save_path, bbox_inches='tight')
+        plt.close()
+
 def plot_volatility(etf_df, transaction_df, merged_df, save_path=None, timedelta="month"):
     # Name map.
     etf_translations = {isin: name for isin, name in transaction_df[["symbol_isin", "name"]].itertuples(index=False)}

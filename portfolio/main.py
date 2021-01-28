@@ -10,7 +10,7 @@ from .import load_data, plot, stats, crawl_data
 from .template import get_template
 
 
-def analyze_portfolio(transaction_df, etf_df, plot_output_path):
+def analyze_portfolio(transaction_df, etf_df, category_df, plot_output_path):
 	plot.plot_history(etf_df, transaction_df, save_path=plot_output_path + "history.svg")
 	plot.plot_cci(etf_df, transaction_df, save_path=plot_output_path + "cci.svg")
 
@@ -24,17 +24,24 @@ def analyze_portfolio(transaction_df, etf_df, plot_output_path):
 				show_gains=show_gains, show_net_gain=show_net_gain)
 	plot.plot_clustermap(transaction_df, merged_df, save_path=plot_output_path + "clustermap.png")
 	plot.plot_portfolio_distribution(merged_df, save_path=plot_output_path + "distribution.png")
+
+	if category_df is not None and category_df.shape[0] > 0:
+		plot.plot_portfolio_category_distribution(merged_df, category_df=category_df, save_path=plot_output_path + "category_distribution.png")
 	for period in ("month", "year"):
 		plot.plot_volatility(etf_df, transaction_df, merged_df, timedelta=period,
 								save_path=plot_output_path + "volatility_per_{}.png".format(period))
 	return global_state, symbol_state
 
-def update_and_analyze_portfolio(google_sheets_url, etf_data_path, plot_output_path, data_source, data_source_bf, data_source_bm):
+def update_and_analyze_portfolio(google_sheets_url, etf_data_path, google_sheets_url_categories, plot_output_path, data_source, data_source_bf, data_source_bm):
 
 	sns.set_palette("Set2")
 	
 	sys.stdout = event_logger = io.StringIO()
 	transaction_df = crawl_data.load_transactions_from_google_sheets(google_sheets_url)
+	if google_sheets_url_categories is not None:
+		category_df = crawl_data.load_categories_from_google_sheets(google_sheets_url_categories)
+	else:
+		category_df = None
 
 	etf_df = load_data.read_current_etf_information(etf_data_path)
 
@@ -50,7 +57,7 @@ def update_and_analyze_portfolio(google_sheets_url, etf_data_path, plot_output_p
 													save_folder_path=save_folder_path)
 
 	try:
-		global_state, symbol_state = analyze_portfolio(transaction_df, etf_df, plot_output_path)
+		global_state, symbol_state = analyze_portfolio(transaction_df, etf_df, category_df, plot_output_path)
 	except Exception as e:
 		print("Unhandled exception: {}".format(str(e)))
 		global_state, symbol_state = None, None
